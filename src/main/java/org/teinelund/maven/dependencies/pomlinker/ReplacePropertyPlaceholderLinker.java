@@ -1,52 +1,51 @@
 package org.teinelund.maven.dependencies.pomlinker;
 
 import org.teinelund.maven.dependencies.Application;
-import org.teinelund.maven.dependencies.Dependency;
-import org.teinelund.maven.dependencies.Pom;
+import org.teinelund.maven.dependencies.domain.Dependency;
+import org.teinelund.maven.dependencies.domain.PomImpl;
 import org.teinelund.maven.dependencies.commandline.CommandLineOptions;
 import org.teinelund.maven.dependencies.commandline.OPTION;
 import org.xml.sax.SAXException;
 
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ReplacePropertyPlaceholderLinker implements Linker<List<Pom>> {
+public class ReplacePropertyPlaceholderLinker implements Linker<List<PomImpl>> {
 
     private CommandLineOptions options;
-    private Linker<List<Pom>> linker;
+    private Linker<List<PomImpl>> linker;
 
-    public ReplacePropertyPlaceholderLinker(final CommandLineOptions options, final Linker<List<Pom>> linker) {
+    public ReplacePropertyPlaceholderLinker(final CommandLineOptions options, final Linker<List<PomImpl>> linker) {
         this.options = options;
         this.linker = linker;
     }
 
     @Override
-    public void process(List<Pom> input) throws IOException, ParserConfigurationException, SAXException {
+    public void process(List<PomImpl> input) throws IOException, ParserConfigurationException, SAXException {
         if (options.isOption(OPTION.VERBOSE)) {
             System.out.println("Replace Property Placeholder...");
         }
-        for (Pom pom : input) {
-            if (pom.getParentModulePom() == null) {
-                if (pom.getDependency().getGroupId().equals(Application.getGroupIdPlaceholder())) {
-                    printErrorMessage(pom, "Can't find ${project.groupId} for pom: ");
+        for (PomImpl pomImpl : input) {
+            if (pomImpl.getParentPom().isPresent() ) {
+                if (pomImpl.getDependency().getGroupId().equals(Application.getGroupIdPlaceholder())) {
+                    printErrorMessage(pomImpl, "Can't find ${project.groupId} for pomImpl: ");
                 }
-                if (pom.getDependency().getGroupId().equals(Application.getDependencyPlaceholder())) {
-                    printErrorMessage(pom, "Can't calculate groupId for pom: ");
+                if (pomImpl.getDependency().getGroupId().equals(Application.getDependencyPlaceholder())) {
+                    printErrorMessage(pomImpl, "Can't calculate groupId for pomImpl: ");
                 }
-                if (pom.getDependency().getVersion().equals(Application.getVersionPlaceholder())) {
-                    printErrorMessage(pom, "Can't find ${project.version} for pom: ");
+                if (pomImpl.getDependency().getVersion().equals(Application.getVersionPlaceholder())) {
+                    printErrorMessage(pomImpl, "Can't find ${project.version} for pomImpl: ");
                 }
-                if (pom.getDependency().getVersion().equals(Application.getDependencyPlaceholder())) {
-                    printErrorMessage(pom, "Can't calculate version for pom: ");
+                if (pomImpl.getDependency().getVersion().equals(Application.getDependencyPlaceholder())) {
+                    printErrorMessage(pomImpl, "Can't calculate version for pomImpl: ");
                 }
-                String projectGroupId = pom.getDependency().getGroupId();
-                String projectVersion = pom.getDependency().getVersion();
+                String projectGroupId = pomImpl.getDependency().getGroupId();
+                String projectVersion = pomImpl.getDependency().getVersion();
                 Map<String, String> properties = new HashMap<>();
-                replacePropertyVariablesInPom(pom, projectGroupId, projectVersion, properties);
+                replacePropertyVariablesInPom(pomImpl, projectGroupId, projectVersion, properties);
             }
         }
         if (options.isOption(OPTION.VERBOSE)) {
@@ -55,34 +54,34 @@ public class ReplacePropertyPlaceholderLinker implements Linker<List<Pom>> {
         this.linker.process(input);
     }
 
-    void printErrorMessage(final Pom pom, final String errorMessage) {
+    void printErrorMessage(final PomImpl pomImpl, final String errorMessage) {
         StringBuilder error = new StringBuilder();
         error.append(errorMessage);
         error.append(Application.getNewLine());
-        error.append(pom.toString());
+        error.append(pomImpl.toString());
         System.out.println(error.toString());
         System.exit(-1);
     }
 
-    void replacePropertyVariablesInPom(final Pom pom, final String projectGroupId, final String projectVersion,
-                                              Map<String,String> properties) {
+    void replacePropertyVariablesInPom(final PomImpl pomImpl, final String projectGroupId, final String projectVersion,
+                                       Map<String,String> properties) {
         if (options.isOption(OPTION.VERBOSE)) {
-            System.out.println("  Process pom : " + pom.getDependency().toString());
+            System.out.println("  Process pomImpl : " + pomImpl.getDependency().toString());
         }
-        printPropertiesInPom(pom);
-        if (pom.getDependency().getGroupId().equals(Application.getGroupIdPlaceholder())) {
-            pom.getDependency().replaceGroupId(projectGroupId);
+        printPropertiesInPom(pomImpl);
+        if (pomImpl.getDependency().getGroupId().equals(Application.getGroupIdPlaceholder())) {
+            pomImpl.getDependency().replaceGroupId(projectGroupId);
         }
-        if (pom.getDependency().getVersion().equals(Application.getVersionPlaceholder())) {
-            pom.getDependency().replaceVersion(projectVersion);
+        if (pomImpl.getDependency().getVersion().equals(Application.getVersionPlaceholder())) {
+            pomImpl.getDependency().replaceVersion(projectVersion);
         }
-        for (Dependency dependency : pom.getDependencies()) {
+        for (Dependency dependency : pomImpl.getDependencies()) {
             String oldDependencyString = dependency.toString();
             boolean isPropertyReplaced = false;
             if (dependency.getVersion().trim().startsWith("${") && dependency.getVersion().trim().endsWith("}")) {
                 String propertyPlaceholder = dependency.getVersion().trim().substring(2, dependency.getVersion().trim().length() - 1);
-                if (pom.existProperty(propertyPlaceholder)) {
-                    dependency.replaceVersion(pom.getProperty(propertyPlaceholder));
+                if (pomImpl.existProperty(propertyPlaceholder)) {
+                    dependency.replaceVersion(pomImpl.getProperty(propertyPlaceholder));
                     isPropertyReplaced = true;
                 }
                 if (properties.containsKey(propertyPlaceholder)) {
@@ -108,21 +107,21 @@ public class ReplacePropertyPlaceholderLinker implements Linker<List<Pom>> {
             }
         }
 
-        for (Pom pomModule : pom.getModulesPoms()) {
+        for (PomImpl pomImplModule : pomImpl.getModulesPomImpls()) {
             Map<String,String> propertiesCopy = new HashMap<>();
             propertiesCopy.putAll(properties);
-            propertiesCopy.putAll(pom.getProperties());
-            replacePropertyVariablesInPom(pomModule, projectGroupId, projectVersion, propertiesCopy);
+            propertiesCopy.putAll(pomImpl.getProperties());
+            replacePropertyVariablesInPom(pomImplModule, projectGroupId, projectVersion, propertiesCopy);
         }
     }
 
-    void printPropertiesInPom(final Pom pom) {
+    void printPropertiesInPom(final PomImpl pomImpl) {
         if (options.isOption(OPTION.VERBOSE)) {
-            if ( ! pom.getProperties().isEmpty()) {
+            if ( ! pomImpl.getProperties().isEmpty()) {
                 StringBuilder properties = new StringBuilder();
                 properties.append("    Properties: ");
-                for (String key : pom.getProperties().keySet()) {
-                    String value = pom.getProperty(key);
+                for (String key : pomImpl.getProperties().keySet()) {
+                    String value = pomImpl.getProperty(key);
                     properties.append(key);
                     properties.append(":");
                     properties.append(value);

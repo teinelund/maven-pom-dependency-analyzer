@@ -1,9 +1,13 @@
-package org.teinelund.maven.dependencies;
+package org.teinelund.maven.dependencies.logic;
 
 import org.jdom2.Document;
 import org.jdom2.Element;
 import org.jdom2.Namespace;
 import org.jdom2.input.DOMBuilder;
+import org.teinelund.maven.dependencies.domain.BasicPomFileMutable;
+import org.teinelund.maven.dependencies.domain.Dependency;
+import org.teinelund.maven.dependencies.domain.ParentPomDependency;
+import org.teinelund.maven.dependencies.domain.PomImpl;
 import org.xml.sax.SAXException;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -13,12 +17,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 
-public class PomBuilder {
+class PomBuilder {
 
     private InputStream pomfile;
     private Path path;
-    private Pom pom;
+    private PomImpl pomImpl;
 
     public PomBuilder(InputStream pomfile, Path path) {
         this.pomfile = pomfile;
@@ -28,14 +33,15 @@ public class PomBuilder {
     public void build() throws ParserConfigurationException, SAXException, IOException {
         Element rootElement = readPomFile(this.pomfile, this.path);
         Dependency dependency = fetchPomGroupIdArtifactIdAndVersion(rootElement);
-        this.pom = new Pom(dependency, this.path);
-        fetchPomDependencies(rootElement, this.pom);
-        fetchModules(rootElement, this.pom);
-        fetchProperties(rootElement, this.pom);
+        Optional<ParentPomDependency> parentPomDependencyOptional = fetchParentPomDependency(rootElement);
+        this.pomImpl = new PomImpl(parentPomDependencyOptional, dependency, this.path);
+        fetchPomDependencies(rootElement, this.pomImpl);
+        fetchModules(rootElement, this.pomImpl);
+        fetchProperties(rootElement, this.pomImpl);
     }
 
-    public Pom getResult() {
-        return this.pom;
+    public PomImpl getResult() {
+        return this.pomImpl;
     }
 
     Element readPomFile(InputStream pomfile, Path path) throws IOException, SAXException, ParserConfigurationException {
@@ -85,7 +91,30 @@ public class PomBuilder {
         return dependency;
     }
 
-    void fetchPomDependencies(final Element rootElement, final Pom pom) {
+    Optional<ParentPomDependency> fetchParentPomDependency(final Element rootElement) {
+        Optional<ParentPomDependency> parentPomDependencyOptional = Optional.empty();
+        Namespace namespace = rootElement.getNamespace();
+        Element parentElement = rootElement.getChild("parent", namespace);
+        if (parentElement != null) {
+            Element groupIdElement = parentElement.getChild("groupId", namespace);
+            String groupId = "?";
+            if (groupIdElement != null)
+                groupId = groupIdElement.getText();
+            String artifactId = parentElement.getChild("artifactId", namespace).getText();
+            Element versionElement = parentElement.getChild("version", namespace);
+            String version = "?";
+            if (versionElement != null)
+                version = versionElement.getText();
+            Element parentPathElement = parentElement.getChild("relativePath", namespace);
+            String relativePath = "../pom.xml";
+            if (parentPathElement != null)
+                relativePath = parentPathElement.getText();
+            parentPomDependencyOptional = Optional.of( new ParentPomDependency(groupId, artifactId, version, relativePath) );
+        }
+        return parentPomDependencyOptional;
+    }
+
+    void fetchPomDependencies(final Element rootElement, final BasicPomFileMutable pom) {
         Namespace namespace = rootElement.getNamespace();
         Element dependenciesElement = rootElement.getChild("dependencies", namespace);
         if (dependenciesElement != null) {
@@ -113,7 +142,7 @@ public class PomBuilder {
         return new Dependency(groupId, artifactId, version);
     }
 
-    void fetchModules(final Element rootElement, final Pom pom) {
+    void fetchModules(final Element rootElement, final BasicPomFileMutable pom) {
         Namespace namespace = rootElement.getNamespace();
         Element modulesElement = rootElement.getChild("modules", namespace);
         if (modulesElement != null) {
@@ -125,7 +154,7 @@ public class PomBuilder {
         }
     }
 
-    void fetchProperties(final Element rootElement, final Pom pom) {
+    void fetchProperties(final Element rootElement, final BasicPomFileMutable pom) {
         Namespace namespace = rootElement.getNamespace();
         Element propertiesElement = rootElement.getChild("properties", namespace);
         if (propertiesElement != null) {

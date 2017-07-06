@@ -1,5 +1,6 @@
-package org.teinelund.maven.dependencies.pomlinker;
+package org.teinelund.maven.dependencies.logic;
 
+import org.teinelund.maven.dependencies.InformationSink;
 import org.teinelund.maven.dependencies.commandline.CommandLineOptions;
 import org.teinelund.maven.dependencies.commandline.OPTION;
 import org.xml.sax.SAXException;
@@ -9,41 +10,43 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.Collection;
+import java.util.HashSet;
 
-public class FetchMavenPomFilesLinker implements Linker<List<Path>> {
+class MavenPomFileFetcherImp implements MavenPomFileFetcher {
 
+    private InformationSink informationSink;
     private CommandLineOptions options;
-    private Linker<List<Path>> linker;
+    private PathExcludeFilter pathExcludeFilter;
 
-    public FetchMavenPomFilesLinker(final CommandLineOptions options, final Linker<List<Path>> linker) {
+    public MavenPomFileFetcherImp(InformationSink informationSink, final CommandLineOptions options, PathExcludeFilter pathExcludeFilter) {
+        this.informationSink = informationSink;
         this.options = options;
-        this.linker = linker;
+        this.pathExcludeFilter = pathExcludeFilter;
     }
 
     @Override
-    public void process(List<Path> input) throws ParserConfigurationException, SAXException, IOException {
+    public void fetchMavenPomFiles(Collection<Path> mavenProjectDirectories) throws IOException, SAXException, ParserConfigurationException {
         if (options.isOption(OPTION.VERBOSE)) {
-            System.out.println("Fetch Maven PomImpl Files...");
+            informationSink.information("Fetch Maven PomImpl Files...");
         }
-        List<Path> pomfilePathList = new LinkedList<>();
-        for (Path path : input) {
-            filterOutMavenPomFileFromDirectory(path, pomfilePathList);
+        HashSet<Path> pomfilePaths = new HashSet<>();
+        for (Path mavenProjectDirectory : mavenProjectDirectories) {
+            filterOutMavenPomFileFromDirectory(mavenProjectDirectory, pomfilePaths);
         }
         if (this.options.isOption(OPTION.VERBOSE)) {
-            System.out.println("Paths to pom files:");
-            for (Path path : pomfilePathList) {
-                System.out.println("  " + path.toString());
+            informationSink.information("Paths to pom files:");
+            for (Path path : pomfilePaths) {
+                informationSink.information("  " + path.toString());
             }
         }
         if (options.isOption(OPTION.VERBOSE)) {
-            System.out.println("End Fetch Maven PomImpl Files.");
+            informationSink.information("End Fetch Maven PomImpl Files.");
         }
-        this.linker.process(pomfilePathList);
+        pathExcludeFilter.excludePaths(pomfilePaths);
     }
 
-    void filterOutMavenPomFileFromDirectory(Path path, List<Path> pomfilePathList) {
+    void filterOutMavenPomFileFromDirectory(Path path, HashSet<Path> pomfilePathList) {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
             for (Path entry: stream) {
                 if ( Files.isDirectory(entry) ) {
@@ -60,7 +63,7 @@ public class FetchMavenPomFilesLinker implements Linker<List<Path>> {
         } catch (IOException x) {
             // IOException can never be thrown by the iteration.
             // In this snippet, it can // only be thrown by newDirectoryStream.
-            System.err.println(x);
+            informationSink.error(x.toString());
         }
     }
 }

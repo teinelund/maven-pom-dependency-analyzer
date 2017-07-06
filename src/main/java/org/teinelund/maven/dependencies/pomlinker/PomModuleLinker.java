@@ -2,86 +2,84 @@ package org.teinelund.maven.dependencies.pomlinker;
 
 import org.teinelund.maven.dependencies.Application;
 import org.teinelund.maven.dependencies.ApplicationException;
-import org.teinelund.maven.dependencies.Pom;
+import org.teinelund.maven.dependencies.domain.PomImpl;
 import org.teinelund.maven.dependencies.commandline.CommandLineOptions;
 import org.teinelund.maven.dependencies.commandline.OPTION;
 import org.xml.sax.SAXException;
 
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-public class PomModuleLinker implements Linker<List<Pom>> {
+public class PomModuleLinker implements Linker<List<PomImpl>> {
 
     private CommandLineOptions options;
-    private Linker<List<Pom>> linker;
+    private Linker<List<PomImpl>> linker;
     private StringBuilder warnings;
 
-    public PomModuleLinker(final CommandLineOptions options, final Linker<List<Pom>> linker, final StringBuilder warnings) {
+    public PomModuleLinker(final CommandLineOptions options, final Linker<List<PomImpl>> linker, final StringBuilder warnings) {
         this.options = options;
         this.linker = linker;
         this.warnings = warnings;
     }
 
     @Override
-    public void process(List<Pom> input) throws IOException, ParserConfigurationException, SAXException {
+    public void process(List<PomImpl> input) throws IOException, ParserConfigurationException, SAXException {
         if (options.isOption(OPTION.VERBOSE)) {
-            System.out.println("Process Pom Modules...");
+            System.out.println("Process PomImpl Modules...");
         }
-        Map<String, List<Pom>> pomMap = PomFileDependencyLinker.buildPomMap(input, warnings);
-        for (Pom pom : input) {
-            for(String moduleName : pom.getModuleNames()) {
-                List<Pom> pomMapList = pomMap.get(moduleName);
-                if (pomMapList.size() == 0) {
+        Map<String, List<PomImpl>> pomMap = PomFileDependencyLinker.buildPomMap(input, warnings);
+        for (PomImpl pomImpl : input) {
+            for(String moduleName : pomImpl.getModuleNames()) {
+                List<PomImpl> pomImplMapList = pomMap.get(moduleName);
+                if (pomImplMapList.size() == 0) {
                     StringBuilder error = new StringBuilder();
                     error.append("Module name: ");
                     error.append(moduleName);
-                    error.append(" don't have a Pom file registred."); error.append(Application.getNewLine());
-                    error.append("Affected pom:"); error.append(Application.getNewLine());
-                    error.append(pom.toString());
+                    error.append(" don't have a PomImpl file registred."); error.append(Application.getNewLine());
+                    error.append("Affected pomImpl:"); error.append(Application.getNewLine());
+                    error.append(pomImpl.toString());
                     throw new ApplicationException(error.toString());
                 }
-                else if (pomMapList.size() == 1) {
-                    Pom modulePom = pomMapList.get(0);
-                    pom.addModulePom(modulePom);
-                    modulePom.setParentModulePom(pom);
+                else if (pomImplMapList.size() == 1) {
+                    PomImpl modulePomImpl = pomImplMapList.get(0);
+                    pomImpl.addModulePom(modulePomImpl);
+                    modulePomImpl.setParentPom(pomImpl);
                 }
                 else {
                     boolean foundModulePom = false;
-                    for (Pom modulePom : pomMapList) {
-                        if (modulePom.getDependency().getGroupId().equals(pom.getDependency().getGroupId())) {
-                            if (modulePom.getDependency().getVersion().equals(pom.getDependency().getVersion())) {
+                    for (PomImpl modulePomImpl : pomImplMapList) {
+                        if (modulePomImpl.getDependency().getGroupId().equals(pomImpl.getDependency().getGroupId())) {
+                            if (modulePomImpl.getDependency().getVersion().equals(pomImpl.getDependency().getVersion())) {
                                 foundModulePom = true;
-                                pom.addModulePom(modulePom);
-                                modulePom.setParentModulePom(pom);
+                                pomImpl.addModulePom(modulePomImpl);
+                                modulePomImpl.setParentPom(pomImpl);
                             }
                         }
-                        else if (modulePom.getDependency().getGroupId().equals(Application.getGroupIdPlaceholder())) {
-                            if (modulePom.getPathToPomFile().getParent().toString().startsWith(
-                                    pom.getPathToPomFile().getParent().toString())) {
+                        else if (modulePomImpl.getDependency().getGroupId().equals(Application.getGroupIdPlaceholder())) {
+                            if (modulePomImpl.getPathToPomFile().getParent().toString().startsWith(
+                                    pomImpl.getPathToPomFile().getParent().toString())) {
                                 foundModulePom = true;
-                                pom.addModulePom(modulePom);
-                                modulePom.setParentModulePom(pom);
+                                pomImpl.addModulePom(modulePomImpl);
+                                modulePomImpl.setParentPom(pomImpl);
                             }
                         }
-                        else if (modulePom.getDependency().getGroupId().equals("?")) {
-                            if (modulePom.getPathToPomFile().getParent().toString().startsWith(
-                                    pom.getPathToPomFile().getParent().toString())) {
+                        else if (modulePomImpl.getDependency().getGroupId().equals("?")) {
+                            if (modulePomImpl.getPathToPomFile().getParent().toString().startsWith(
+                                    pomImpl.getPathToPomFile().getParent().toString())) {
                                 foundModulePom = true;
-                                pom.addModulePom(modulePom);
-                                modulePom.setParentModulePom(pom);
+                                pomImpl.addModulePom(modulePomImpl);
+                                modulePomImpl.setParentPom(pomImpl);
                             }
                         }
                     }
                     if (! foundModulePom) {
-                        warnings.append("Module name " + moduleName + " don't have a Pom file registred."); warnings.append(Application.getNewLine());
-                        warnings.append("  Pom files in pom file list:"); warnings.append(Application.getNewLine());
-                        for (Pom pomInPomList : pomMapList ) {
+                        warnings.append("Module name " + moduleName + " don't have a PomImpl file registred."); warnings.append(Application.getNewLine());
+                        warnings.append("  PomImpl files in pomImpl file list:"); warnings.append(Application.getNewLine());
+                        for (PomImpl pomInPomImplList : pomImplMapList) {
                             warnings.append("  ");
-                            warnings.append(pomInPomList.getDependency().toString()); warnings.append(Application.getNewLine());
+                            warnings.append(pomInPomImplList.getDependency().toString()); warnings.append(Application.getNewLine());
                         }
                     }
                 }
@@ -89,11 +87,11 @@ public class PomModuleLinker implements Linker<List<Pom>> {
         }
         if (options.isOption(OPTION.VERBOSE)) {
             System.out.println("Connected module pom.xml files:");
-            for (Pom pom : input) {
-                if ( ! pom.getModulesPoms().isEmpty() ) {
-                    System.out.println("  " + pom.getDependency().toString() + " has the modules:");
-                    for (Pom modulePom : pom.getModulesPoms()) {
-                        System.out.println("  +-" + modulePom.getDependency().toString());
+            for (PomImpl pomImpl : input) {
+                if ( ! pomImpl.getModulesPomImpls().isEmpty() ) {
+                    System.out.println("  " + pomImpl.getDependency().toString() + " has the modules:");
+                    for (PomImpl modulePomImpl : pomImpl.getModulesPomImpls()) {
+                        System.out.println("  +-" + modulePomImpl.getDependency().toString());
                     }
                 }
             }

@@ -1,14 +1,13 @@
 package org.teinelund.maven.dependencies;
 
-import org.teinelund.maven.dependencies.commandline.CommandLineOptions;
-import org.teinelund.maven.dependencies.commandline.CommandLineValidator;
-import org.teinelund.maven.dependencies.pomlinker.PomFileDependencyLinker;
+import org.teinelund.maven.dependencies.commandline.*;
+import org.teinelund.maven.dependencies.logic.*;
 import org.xml.sax.SAXException;
 
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
 
-public class Application {
+public class Application implements InformationSink {
 
     public static void main(String[] args) throws IOException, SAXException, ParserConfigurationException {
         Application application = new Application(args);
@@ -41,13 +40,51 @@ public class Application {
     }
 
     public void start() throws IOException, SAXException, ParserConfigurationException {
-        CommandLineOptions options = new CommandLineOptions(this.args);
-        options.parse();
+        CommandLineOptionsFactory factory = new CommandLineOptionsFactoryImp();
+        CommandLineOptions options = factory.createCommandLineOption(this.args);
         CommandLineValidator validator = new CommandLineValidator();
         validator.validate(options);
-        PomFileDependencyLinker linker = new PomFileDependencyLinker(options);
-        linker.printHelpOrVersionIfOptionsIsTrue();
-        linker.linkPomFiles();
+        MavenProjectDirectoryPathsVerifier verifier = wireApplication(options);
+        //PomFileDependencyLinker linker = new PomFileDependencyLinker(options);
+        if (options.isOption(OPTION.HELP) || options.isOption(OPTION.VERSION)) {
+            if (options.isOption(OPTION.HELP)) {
+                options.printHelp();
+            }
+            if (options.isOption(OPTION.VERSION)) {
+                String version = Application.class.getPackage().getImplementationVersion();
+                System.out.println("Maven Repositories Dependency Analyser, version " + version + ".");
+                System.out.println("Copyright (C) 2016 Henrik Teinelund.");
+            }
+        }
+        else {
+            verifier.analyzePaths();
+        }
     }
 
+    private MavenProjectDirectoryPathsVerifier wireApplication(CommandLineOptions options) {
+        MavenPomEntityFactory factory = new MavenPomEntityFactoryImpl();
+        ReplacePropertyPlaceholder replacePropertyPlaceholder = factory.createReplacePropertyPlaceholder(this, options, null);
+        MavenPomFileHierarchyOrganizer mavenPomFileHierarchyOrganizer = factory.createMavenPomFileHierarchyOrganizer(this, options, replacePropertyPlaceholder);
+        MavenPomFileReader mavenPomFileReader = factory.createMavenPomFileReader(this, options, mavenPomFileHierarchyOrganizer);
+        PathExcludeFilter excludeFilter = factory.createPathExcludeFilter(this, options, mavenPomFileReader);
+        MavenPomFileFetcher pomFileFetcher = factory.createMavenPomFileFetcher(this, options, excludeFilter);
+        MavenProjectDirectoryPathsVerifier verifier = factory.createMavenProjectDirectoryPathsVerifier(this, options, pomFileFetcher);
+
+        return verifier;
+    }
+
+    @Override
+    public void information(String informationMessage) {
+        System.out.println("Info: " + informationMessage);
+    }
+
+    @Override
+    public void warning(String warningMessage) {
+        System.out.println("Warning: " + warningMessage);
+    }
+
+    @Override
+    public void error(String errorMessage) {
+        System.out.println("Error: " + errorMessage);
+    }
 }

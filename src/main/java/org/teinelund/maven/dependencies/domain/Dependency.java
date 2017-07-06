@@ -1,4 +1,4 @@
-package org.teinelund.maven.dependencies;
+package org.teinelund.maven.dependencies.domain;
 
 public class Dependency {
     private String groupId;
@@ -44,7 +44,7 @@ public class Dependency {
         if (other == this) {
             return true;
         }
-        if ( ! (other instanceof  Dependency) ) {
+        if ( ! (other instanceof Dependency) ) {
             return false;
         }
         Dependency otherDependency = (Dependency) other;
