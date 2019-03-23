@@ -43,7 +43,9 @@ class PathExcludeFilterImpl implements PathExcludeFilter {
             for (Path path : pomXmlFiles) {
                 boolean foundExcludePath = false;
                 for (String excludePathName : this.options.getExcludeRepoPathNames()) {
-                    if (path.toString().contains(excludePathName)) {
+                    String pathName = path.toString();
+                    pathName = pathName.replaceAll("\\\\", "/");
+                    if (pathName.contains(excludePathName)) {
                         foundExcludePath = true;
                         if (options.isOption(OPTION.VERBOSE)) {
                             if (nrOfExcludedFiles == 0)
